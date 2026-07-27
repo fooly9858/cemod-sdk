@@ -115,9 +115,9 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
     if not isinstance(manifest, dict):
         raise CemodError("manifest.json must contain an object")
     package_version = manifest.get("package_version")
-    if (isinstance(package_version, bool) or package_version not in (1, 2) or
+    if (isinstance(package_version, bool) or package_version not in (1, 2, 3) or
             isinstance(manifest.get("api_version"), bool) or manifest.get("api_version") != 2):
-        raise CemodError("manifest requires package_version 1 or 2 and api_version 2")
+        raise CemodError("manifest requires package_version 1, 2 or 3 and api_version 2")
     if manifest.get("execution_mode") not in ("isolated", "trusted_native"):
         raise CemodError("execution_mode must be isolated or trusted_native")
     if not _identifier(manifest.get("mod_id", "")):
@@ -182,6 +182,11 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
                 "filesystem", "network", "mapped_memory", "notifications",
                 "content_redirection", "modules",
             }
+            # plugin_management is gated on package_version 3 by CemuExtend's
+            # own manifest parser; mirror that here rather than accepting it
+            # on a version the host would reject.
+            if package_version >= 3:
+                allowed = allowed | {"plugin_management"}
             if not isinstance(permissions, dict) or not set(permissions) <= allowed:
                 raise CemodError("permissions contains an unknown field")
             for name in allowed - {"filesystem", "modules"}:
