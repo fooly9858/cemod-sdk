@@ -3,10 +3,25 @@
 # Generic build images for cemod-sdk projects, selected via `--target`:
 #   builder       devkitPPC + short-wchar-stdlib toolchain, produces the
 #                 trusted-native ELF payload (default target).
-#   wups-builder  the `builder` toolchain plus a WUPS (Wii U Plugin System)
-#                 toolchain built from the project's own
-#                 third_party/toolchains/WiiUPluginSystem/, for the WUPS
+#   wups-builder  the stock devkitPro toolchain of WUPS_BASE_IMAGE plus a
+#                 WUPS (Wii U Plugin System) library built from the project's
+#                 own third_party/toolchains/WiiUPluginSystem/, for the WUPS
 #                 plugin payload.
+#
+# The two targets deliberately do NOT share a toolchain. The ELF payload is a
+# freestanding cemod that owns its whole process and needs Minecraft's 16-bit
+# wchar_t ABI all the way down, so `builder` pins devkitPPC r46.1 and layers
+# the from-source short-wchar newlib/libstdc++ (mcwiiu-stdlib) on top. The
+# WUPS payload is loaded by Aroma into a host RPX and links the prebuilt
+# libwut.a/libwups.a, which are compiled against the devkitPPC of
+# WUPS_BASE_IMAGE. Those two newlibs are not interchangeable: struct _reent
+# grew between newlib 4.4.0 (r46.1, sizeof 288, deviceData at offset 284) and
+# newlib 4.6.0 (sizeof 512, deviceData at offset 508), so a WUPS plugin built
+# on the `builder` toolchain has libsysbase's chdir() writing the devoptab
+# device at 284 while libwut's __wut_fsa_chdir() reads it back from 508 --
+# a null device dereference on the first chdir(). wups-builder therefore
+# derives straight from WUPS_BASE_IMAGE and never sees mcwiiu-stdlib or
+# mcwiiu-gcc at all.
 #
 # The default build context MUST be the consuming project's root directory
 # (not this SDK directory) so the ARG-selected devkitPPC vendor archive below
@@ -47,24 +62,33 @@ RUN --mount=type=cache,target=/var/cache/mcwiiu-stdlib \
 WORKDIR /project
 CMD ["sh", "-c", "sh \"$CEMOD_SDK_ROOT/infra/docker/container/container-build.sh\""]
 
-# elf2rpl/readrpl ship prebuilt in BASE_IMAGE already (inherited via the
-# `builder` stage below), so there is no wut-tools build stage here -- only
-# the WiiUPluginSystem library itself.
-FROM ${WUPS_BASE_IMAGE} AS wups-toolchain
+# elf2rpl/readrpl ship prebuilt in WUPS_BASE_IMAGE already, so there is no
+# wut-tools build stage here -- only the WiiUPluginSystem library itself.
+# Built in the very image that goes on to compile and link the plugin, so
+# libwups.a, libwut.a, libsysbase.a, libc.a and libstdc++.a all come from one
+# devkitPro installation.
+FROM ${WUPS_BASE_IMAGE} AS wups-builder
 WORKDIR /src/WiiUPluginSystem
 COPY third_party/toolchains/WiiUPluginSystem/ ./
 RUN make clean && make -j"$(nproc)" \
-    && mkdir -p /artifacts/wups /artifacts/devkitPPC \
-    && cp -a lib include share /artifacts/wups/ \
-    && cp /opt/devkitpro/devkitPPC/base_rules /opt/devkitpro/devkitPPC/base_tools /artifacts/devkitPPC/
+    && mkdir -p /opt/devkitpro/wups \
+    && cp -a lib include share /opt/devkitpro/wups/ \
+    && rm -rf /src/WiiUPluginSystem
 
-FROM builder AS wups-builder
-COPY --from=wups-toolchain /artifacts/ /opt/devkitpro/
-RUN test "$(powerpc-eabi-gcc -dumpfullversion)" = "14.2.0" \
-    && test -f /opt/devkitpro/mcwiiu-stdlib/.wchar16 \
+ENV DEVKITPRO=/opt/devkitpro \
+    DEVKITPPC=/opt/devkitpro/devkitPPC \
+    PATH=/opt/devkitpro/devkitPPC/bin:${PATH}
+
+# The WUPS payload must be built by exactly one C/C++ runtime. Fail the image
+# build if either short-wchar prefix ever leaks into this stage.
+RUN test ! -e /opt/devkitpro/mcwiiu-stdlib \
+    && test ! -e /opt/devkitpro/mcwiiu-gcc \
     && test -f /opt/devkitpro/devkitPPC/base_rules \
     && test -f /opt/devkitpro/wups/share/wups_rules \
     && test -f /opt/devkitpro/wups/lib/libwups.a \
+    && test -f /opt/devkitpro/wut/lib/libwut.a \
     && test -x /opt/devkitpro/tools/bin/elf2rpl \
     && test -x /opt/devkitpro/tools/bin/readrpl
+
+WORKDIR /project
 CMD ["sh", "-c", "sh \"$CEMOD_SDK_ROOT/infra/docker/container/container-build-wups.sh\""]
