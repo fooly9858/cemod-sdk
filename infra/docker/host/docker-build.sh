@@ -66,7 +66,9 @@ export DEVKITPPC_ARCHIVE
 export DEVKITPPC_SHA256
 
 if [ "$wups" = 1 ]; then
-  docker compose build builder
+  # wups-builder no longer layers on top of `builder`: it uses the stock
+  # devkitPro toolchain that libwut/libwups were compiled against, with no
+  # short-wchar stdlib. Nothing to build for the ELF image here.
   docker compose --profile wups build wups-builder
   docker compose --profile wups run --rm wups-builder
   suffix="-wups"

@@ -15,7 +15,11 @@ fi
 powerpc-eabi-gcc --version
 python3 --version
 test -f "$DEVKITPRO/wups/share/wups_rules"
-test -f "$DEVKITPRO/mcwiiu-stdlib/.wchar16"
+# The WUPS payload links the prebuilt libwut.a/libwups.a, so it must be built
+# by the devkitPro C/C++ runtime those were compiled against. The short-wchar
+# prefixes belong to the ELF payload only and must not exist in this image.
+test ! -e "$DEVKITPRO/mcwiiu-stdlib"
+test ! -e "$DEVKITPRO/mcwiiu-gcc"
 command -v elf2rpl >/dev/null
 command -v readrpl >/dev/null
 
