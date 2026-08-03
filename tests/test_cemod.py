@@ -189,6 +189,21 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(CemodError):
             validate_manifest(value)
 
+    def test_v3_trusted_mem2_expansion(self):
+        value = manifest()
+        value["package_version"] = 3
+        value["memory"] = {"mem2_expansion_bytes": 256 * 1024 * 1024}
+        self.assertEqual(validate_manifest(value), ("wups", "plugin.wps"))
+
+        value["memory"]["mem2_expansion_bytes"] += 4096
+        with self.assertRaisesRegex(CemodError, "at most 256 MiB"):
+            validate_manifest(value)
+
+        value = manifest()
+        value["memory"] = {"mem2_expansion_bytes": 4096}
+        with self.assertRaisesRegex(CemodError, "package_version 3"):
+            validate_manifest(value)
+
 
 class WupsTests(unittest.TestCase):
     def test_valid_inspection(self):

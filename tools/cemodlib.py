@@ -206,8 +206,19 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
     if payload_format == "wups" and manifest["execution_mode"] != "trusted_native":
         raise CemodError("WUPS payloads require execution_mode trusted_native")
     if manifest["execution_mode"] == "trusted_native":
-        if any(name in manifest for name in ("memory", "cpu", "entrypoint")):
+        if any(name in manifest for name in ("cpu", "entrypoint")):
             raise CemodError("trusted_native manifest contains isolated-only fields")
+        memory = manifest.get("memory")
+        if memory is not None:
+            if package_version < 3:
+                raise CemodError("trusted_native memory requests require package_version 3")
+            if not isinstance(memory, dict) or set(memory) != {"mem2_expansion_bytes"}:
+                raise CemodError("trusted_native memory must contain only mem2_expansion_bytes")
+            expansion = memory["mem2_expansion_bytes"]
+            if (not _uint(expansion) or not 0 < expansion <= 256 * 1024 * 1024 or
+                    expansion % 4096):
+                raise CemodError(
+                    "mem2_expansion_bytes must be page-aligned and at most 256 MiB")
     else:
         if not all(name in manifest for name in ("memory", "cpu", "entrypoint")):
             raise CemodError("isolated manifest is missing memory, cpu, or entrypoint")
