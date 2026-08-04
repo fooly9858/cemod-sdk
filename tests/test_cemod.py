@@ -127,7 +127,7 @@ def elf_image():
     bootstrap = 0x180
     struct.pack_into(">IHHI", image, bootstrap, 0x434D4231, 1, 24, 1)
     struct.pack_into(">6I", image, bootstrap + 12, 1, 0x10000120, 0x4e800421,
-                     0, 0x10000120, 0)
+                     0xFFFFFFFF, 0x10000120, 0)
     struct.pack_into(">10I", image, 0x280, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     struct.pack_into(">10I", image, 0x2a8, 1, 3, 2, 0x10000000, 0x100, len(names), 0, 0, 1, 0)
     struct.pack_into(">10I", image, 0x2d0, 11, 1, 2, 0x10000100, bootstrap, 36, 0, 0, 4, 0)

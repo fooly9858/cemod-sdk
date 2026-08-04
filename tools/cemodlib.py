@@ -371,7 +371,7 @@ def validate_elf(elf: bytes) -> None:
         raise CemodError("trusted ELF contains an invalid CMB1 record count")
     for record in range(count):
         offset = value[4] + 12 + record * 24
-        if (u32(offset) == 0 or u32(offset + 4) & 3 or u32(offset + 12) != 0 or
+        if (u32(offset) == 0 or u32(offset + 4) & 3 or u32(offset + 12) == 0 or
                 u32(offset + 20) != 0 or not contains(u32(offset + 16), 4, True)):
             raise CemodError("trusted ELF contains an invalid CMB1 record")
 
