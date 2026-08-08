@@ -141,7 +141,8 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
     requested = manifest.get("requested_permissions")
     if (not isinstance(requested, list) or any(not isinstance(value, str) for value in requested) or
             len(requested) != len(set(requested)) or
-            any(value not in {"read", "write", "inject", "clipboard", "capture"} for value in requested)):
+            any(value not in {"read", "write", "inject", "clipboard", "capture", "network"}
+                for value in requested)):
         raise CemodError("requested_permissions is invalid")
 
     if package_version == 1:

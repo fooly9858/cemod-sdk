@@ -146,6 +146,9 @@ class ManifestTests(unittest.TestCase):
     def test_v1_and_v2(self):
         self.assertEqual(validate_manifest(manifest(1)), ("cemod_elf", "mod.elf"))
         self.assertEqual(validate_manifest(manifest()), ("wups", "plugin.wps"))
+        value = manifest()
+        value["requested_permissions"] = ["network"]
+        self.assertEqual(validate_manifest(value), ("wups", "plugin.wps"))
 
     def test_v2_scope_and_permissions(self):
         value = manifest()
