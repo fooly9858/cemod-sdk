@@ -115,9 +115,9 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
     if not isinstance(manifest, dict):
         raise CemodError("manifest.json must contain an object")
     package_version = manifest.get("package_version")
-    if (isinstance(package_version, bool) or package_version not in (1, 2) or
+    if (isinstance(package_version, bool) or package_version not in (1, 2, 3) or
             isinstance(manifest.get("api_version"), bool) or manifest.get("api_version") != 2):
-        raise CemodError("manifest requires package_version 1 or 2 and api_version 2")
+        raise CemodError("manifest requires package_version 1, 2, or 3 and api_version 2")
     if manifest.get("execution_mode") not in ("isolated", "trusted_native"):
         raise CemodError("execution_mode must be isolated or trusted_native")
     if not _identifier(manifest.get("mod_id", "")):
@@ -146,7 +146,7 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
         raise CemodError("requested_permissions is invalid")
 
     if package_version == 1:
-        if any(name in manifest for name in ("payload", "scope", "permissions")):
+        if any(name in manifest for name in ("payload", "scope", "permissions", "lifecycle")):
             raise CemodError("package_version 1 must not contain version 2 fields")
         payload_format, payload_path = "cemod_elf", "mod.elf"
     else:
@@ -198,6 +198,20 @@ def validate_manifest(manifest: dict[str, Any]) -> tuple[str, str]:
                     any(not isinstance(value, str) for value in modules) or
                     len(modules) != len(set(modules)) or any(not _identifier(value) for value in modules)):
                 raise CemodError("permissions.modules is invalid")
+
+        lifecycle = manifest.get("lifecycle")
+        if lifecycle is not None:
+            if package_version < 3:
+                raise CemodError("lifecycle requires package_version 3")
+            if (not isinstance(lifecycle, dict) or set(lifecycle) != {"unload"} or
+                    lifecycle.get("unload") != "after_title_threads_stop"):
+                raise CemodError(
+                    "lifecycle must contain only unload=after_title_threads_stop"
+                )
+            if payload_format != "wups" or manifest["execution_mode"] != "trusted_native":
+                raise CemodError(
+                    "after_title_threads_stop is valid only for trusted_native WUPS payloads"
+                )
 
     if payload_format == "wups" and manifest["execution_mode"] != "trusted_native":
         raise CemodError("WUPS payloads require execution_mode trusted_native")

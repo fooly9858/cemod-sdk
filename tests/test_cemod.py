@@ -32,7 +32,7 @@ def manifest(version=2, payload_format="wups"):
         "title_ids": ["0005000012345678"],
         "requested_permissions": [],
     }
-    if version == 2:
+    if version >= 2:
         result["payload"] = {
             "format": payload_format,
             "path": "plugin.wps" if payload_format == "wups" else "mod.elf",
@@ -155,6 +155,26 @@ class ManifestTests(unittest.TestCase):
         validate_manifest(value)
         value["permissions"]["unknown"] = True
         with self.assertRaisesRegex(CemodError, "unknown"):
+            validate_manifest(value)
+
+    def test_v3_late_wups_release_policy(self):
+        value = manifest(3)
+        value["lifecycle"] = {"unload": "after_title_threads_stop"}
+        self.assertEqual(validate_manifest(value), ("wups", "plugin.wps"))
+
+        value = manifest(2)
+        value["lifecycle"] = {"unload": "after_title_threads_stop"}
+        with self.assertRaisesRegex(CemodError, "package_version 3"):
+            validate_manifest(value)
+
+        value = manifest(3, "cemod_elf")
+        value["lifecycle"] = {"unload": "after_title_threads_stop"}
+        with self.assertRaisesRegex(CemodError, "trusted_native WUPS"):
+            validate_manifest(value)
+
+        value = manifest(3)
+        value["lifecycle"] = {"unload": "future"}
+        with self.assertRaisesRegex(CemodError, "after_title_threads_stop"):
             validate_manifest(value)
 
     def test_descriptor_and_mode_rejections(self):
